@@ -1,0 +1,73 @@
+_schema-version: 3.3.0
+ID: CAP_B
+version: 1.0.0-SNAPSHOT
+description: "A simple CAP project."
+parameters:
+  enable-parallel-deployments: true
+modules:
+  - name: CAP_B-srv
+    type: java
+    path: srv
+    parameters:
+      buildpack: sap_java_buildpack_jakarta
+      readiness-health-check-type: http
+      readiness-health-check-http-endpoint: /actuator/health
+    properties:
+      SPRING_PROFILES_ACTIVE: cloud,sandbox
+      JBP_CONFIG_COMPONENTS: "jres: ['com.sap.xs.java.buildpack.jre.SAPMachineJRE']"
+      JBP_CONFIG_SAP_MACHINE_JRE: '{ version: 21.+ }'
+    build-parameters:
+      builder: custom
+      commands:
+        - mvn clean package -DskipTests=true --batch-mode
+      build-result: target/*-exec.jar
+    provides:
+      - name: srv-api # required by consumers of CAP services (e.g. approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: CAP_B-auth
+      - name: CAP_B-db
+
+  - name: CAP_B-db-deployer
+    type: hdb
+    path: db
+    parameters:
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: custom
+      commands:
+        - npm run build
+    requires:
+      - name: CAP_B-db
+        properties:
+          TARGET_CONTAINER: ~{hdi-service-name}
+      - name: CAP_A-db
+        group: SERVICE_REPLACEMENTS
+        properties:
+          key: CAP_A-db
+          service: ~{CAP_A-db-hdi}
+
+resources:
+  - name: CAP_B-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: CAP_B-${org}-${space}
+        tenant-mode: dedicated
+  - name: CAP_B-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+    properties:
+      hdi-service-name: ${service-name}
+  - name: CAP_A-db
+    type: org.cloudfoundry.existing-service
+    parameters:
+      service-name: CAP_A-db   
+    properties:
+        CAP_A-db-hdi: ${service-name}  

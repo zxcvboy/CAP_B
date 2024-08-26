@@ -1,0 +1,11 @@
+{
+    "sql": {
+        "native_hana_associations": false
+    },
+    "requires": {
+        "auth": "xsuaa"
+    },
+    "dependencies": {
+        "@cap-js/hana": "^1"
+    }
+}
